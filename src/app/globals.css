@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f7f8;
+  --foreground: #0f172a;
+  --brand: #115e59;
+  --brand-dark: #134e4a;
+  --surface: #ffffff;
+  --muted: #64748b;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-source-sans);
+  --font-display: var(--font-libre-baskerville);
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(13, 148, 136, 0.12), transparent 40%),
+    linear-gradient(180deg, #e8eef0 0%, #f4f7f8 35%, #eef3f5 100%);
+  color: var(--foreground);
+  font-family: var(--font-source-sans), "Segoe UI", sans-serif;
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-libre-baskerville), Georgia, serif;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-in {
+  animation: fade-in 0.3s ease-out;
+}
