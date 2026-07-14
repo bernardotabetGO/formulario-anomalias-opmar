@@ -16,6 +16,7 @@ import { OccurrenceInformation } from "./OccurrenceInformation";
 import { PeopleImpactQuestion } from "./PeopleImpactQuestion";
 import { PersonalAccidentFields } from "./PersonalAccidentFields";
 import { ReportReview } from "./ReportReview";
+import { ShareReportActions } from "./ShareReportActions";
 import { PrimaryButton, SecondaryButton } from "./ui";
 import {
   calculateClassifications,
@@ -24,7 +25,7 @@ import {
   hasEnvironmentalOccurrence,
   hasPersonalAccident,
 } from "@/lib/informe-anomalias/classification";
-import { exportAnomalyReportToExcel } from "@/lib/informe-anomalias/excel-export";
+import { exportAnomalyReportToExcel } from "@/lib/informe-anomalias/excel-file";
 import {
   clearDraft,
   createEmptyFormData,
@@ -811,37 +812,44 @@ export function AnomalyReportForm() {
           ) : null}
         </>
       ) : (
-        <ReportReview data={getValues()} />
+        <div className="space-y-6">
+          <ReportReview data={getValues()} />
+          <ShareReportActions data={getValues()} />
+        </div>
       )}
 
-      <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-lg backdrop-blur">
-        <div className="flex flex-wrap gap-3">
-          <SecondaryButton onClick={goBack} disabled={step === 0}>
-            Voltar
-          </SecondaryButton>
-          {step < 4 ? (
-            <PrimaryButton onClick={goContinue}>Continuar</PrimaryButton>
-          ) : null}
-          {step === 3 ? (
-            <PrimaryButton onClick={handleReview}>Revisar informe</PrimaryButton>
-          ) : null}
-          {step < 3 ? (
-            <SecondaryButton onClick={handleReview}>
-              Revisar informe
-            </SecondaryButton>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap gap-3">
-          {step === 4 ? (
-            <>
+      <div className="sticky bottom-0 z-10 space-y-4 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-lg backdrop-blur">
+        {step === 4 ? (
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-slate-800">Ações principais</p>
+            <div className="flex flex-wrap gap-3">
               <PrimaryButton onClick={handleExport}>
                 Exportar para Excel
               </PrimaryButton>
               <SecondaryButton onClick={startNewAfterExport}>
                 Finalizar e iniciar novo informe
               </SecondaryButton>
-            </>
-          ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-3">
+            <SecondaryButton onClick={goBack} disabled={step === 0}>
+              Voltar
+            </SecondaryButton>
+            {step < 4 ? (
+              <PrimaryButton onClick={goContinue}>Continuar</PrimaryButton>
+            ) : null}
+            {step === 3 ? (
+              <PrimaryButton onClick={handleReview}>Revisar informe</PrimaryButton>
+            ) : null}
+            {step < 3 ? (
+              <SecondaryButton onClick={handleReview}>
+                Revisar informe
+              </SecondaryButton>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>

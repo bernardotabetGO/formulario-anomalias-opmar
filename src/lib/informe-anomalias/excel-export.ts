@@ -12,7 +12,6 @@ import {
   formatBrazilianDate,
   formatBrazilianDateTime,
   formatCommunicationTime,
-  sanitizeFileName,
 } from "./record-number";
 import type { AnomalyReportFormData, ImpactType } from "./types";
 import {
@@ -345,12 +344,4 @@ export function workbookToArrayBuffer(workbook: XLSX.WorkBook): ArrayBuffer {
   }
 
   throw new Error("Não foi possível serializar o workbook Excel.");
-}
-
-export function exportAnomalyReportToExcel(data: AnomalyReportFormData): void {
-  const workbook = buildAnomalyReportWorkbook(data);
-  const fileName = sanitizeFileName(
-    `Informe_Anomalia_${data.recordNumber}.xlsx`,
-  );
-  XLSX.writeFile(workbook, fileName);
 }
