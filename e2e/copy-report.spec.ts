@@ -37,8 +37,17 @@ async function goToReview(page: Page) {
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
-    window.__openedUrls = [];
+    window.__clipboardText = "";
     window.__downloadCount = 0;
+    window.__openedUrls = [];
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (text: string) => {
+          window.__clipboardText = text;
+        },
+      },
+    });
     window.open = ((url?: string | URL) => {
       window.__openedUrls?.push(String(url ?? ""));
       return { focus: () => undefined } as Window;
@@ -53,35 +62,37 @@ test.beforeEach(async ({ page }) => {
   await dismissDraftIfPresent(page);
 });
 
-test("botões de compartilhamento aparecem somente na revisão", async ({
-  page,
-}) => {
+test("botões de WhatsApp e e-mail não existem mais", async ({ page }) => {
+  await goToReview(page);
   await expect(
     page.getByRole("button", { name: "Compartilhar no WhatsApp" }),
   ).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Enviar por e-mail" })).toHaveCount(
     0,
   );
+});
+
+test("botão Copiar texto do informe aparece somente na revisão", async ({
+  page,
+}) => {
+  await expect(
+    page.getByRole("button", { name: "Copiar texto do informe" }),
+  ).toHaveCount(0);
 
   await goToReview(page);
 
-  await expect(
-    page.getByRole("heading", { name: "Compartilhar informe" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Copiar informe" })).toBeVisible();
   await expect(
     page.getByText(
-      "Compartilhe um resumo textual completo do informe pelo WhatsApp ou e-mail.",
+      "Copie o informe completo e cole diretamente no WhatsApp, e-mail ou outro aplicativo.",
     ),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Compartilhar no WhatsApp" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Enviar por e-mail" }),
+    page.getByRole("button", { name: "Copiar texto do informe" }),
   ).toBeVisible();
 });
 
-test("WhatsApp abre wa.me com texto e não dispara download", async ({
+test("clique copia texto com registro, classificação, descrição e ações", async ({
   page,
 }) => {
   await goToReview(page);
@@ -91,64 +102,49 @@ test("WhatsApp abre wa.me com texto e não dispara download", async ({
     .first()
     .textContent();
 
-  await page.getByRole("button", { name: "Compartilhar no WhatsApp" }).click();
+  await page.getByRole("button", { name: "Copiar texto do informe" }).click();
 
   await expect(
-    page.getByText("WhatsApp aberto com o resumo do informe."),
+    page.getByText("Informe copiado. Agora é só colar no WhatsApp."),
   ).toBeVisible();
-  await expect(page.getByText("João Auditor")).toBeVisible();
-  await expect(page.getByText(/arquivo Excel/i)).toHaveCount(0);
+
+  const copiedText = await page.evaluate(() => window.__clipboardText ?? "");
+  expect(copiedText).toContain("*INFORME DE ANOMALIA — OPMAR*");
+  expect(copiedText).toContain(recordNumber ?? "");
+  expect(copiedText).toContain("Acidente pessoal");
+  expect(copiedText).toContain(
+    "Descrição objetiva do que aconteceu no local.",
+  );
+  expect(copiedText).toContain(
+    "Medidas tomadas imediatamente após a identificação.",
+  );
 
   const opened = await page.evaluate(() => window.__openedUrls ?? []);
-  expect(opened.some((url) => url.includes("https://wa.me/?text="))).toBe(true);
-  expect(
-    opened.some((url) =>
-      decodeURIComponent(url).includes("INFORME DE ANOMALIA DA OPMAR"),
-    ),
-  ).toBe(true);
+  expect(opened).toHaveLength(0);
 
   const downloads = await page.evaluate(() => window.__downloadCount ?? 0);
   expect(downloads).toBe(0);
+
+  await expect(page.getByText("João Auditor")).toBeVisible();
   expect(recordNumber).toContain("OPMAR-");
 });
 
-test("e-mail abre mailto com assunto e corpo sem download", async ({ page }) => {
+test("visualização do texto abre e fecha", async ({ page }) => {
   await goToReview(page);
 
-  await page.getByRole("button", { name: "Enviar por e-mail" }).click();
-
+  await page.getByRole("button", { name: "Visualizar texto" }).click();
+  await expect(page.getByText("*INFORME DE ANOMALIA — OPMAR*")).toBeVisible();
   await expect(
-    page.getByText("Aplicativo de e-mail aberto com o resumo do informe."),
+    page.getByRole("button", { name: "Copiar novamente" }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Revisão do informe" }),
-  ).toBeVisible();
-  await expect(page.getByText(/arquivo Excel/i)).toHaveCount(0);
 
-  const opened = await page.evaluate(() => window.__openedUrls ?? []);
-  expect(opened.some((url) => url.startsWith("mailto:?subject="))).toBe(true);
-  expect(
-    opened.some((url) =>
-      decodeURIComponent(url).includes(
-        "Informe de Anomalia OPMAR - OPMAR-",
-      ),
-    ),
-  ).toBe(true);
-  expect(
-    opened.some((url) =>
-      decodeURIComponent(url).includes(
-        "Descrição objetiva do que aconteceu no local.",
-      ),
-    ),
-  ).toBe(true);
-
-  const downloads = await page.evaluate(() => window.__downloadCount ?? 0);
-  expect(downloads).toBe(0);
+  await page.getByRole("button", { name: "Ocultar texto" }).click();
+  await expect(page.getByRole("button", { name: "Copiar novamente" })).toHaveCount(
+    0,
+  );
 });
 
-test("Exportar para Excel dispara download e permanece separado", async ({
-  page,
-}) => {
+test("Exportar para Excel continua funcionando", async ({ page }) => {
   await goToReview(page);
 
   await page.getByRole("button", { name: "Exportar para Excel" }).click();
@@ -162,28 +158,27 @@ test("Exportar para Excel dispara download e permanece separado", async ({
   await expect(page.getByText("João Auditor")).toBeVisible();
 });
 
-test("botões de compartilhamento permanecem utilizáveis no mobile", async ({
-  page,
-}) => {
+test("botão de copiar funciona em viewport mobile", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/informe-anomalias");
   await dismissDraftIfPresent(page);
   await goToReview(page);
 
-  const whatsapp = page.getByRole("button", {
-    name: "Compartilhar no WhatsApp",
+  const copyButton = page.getByRole("button", {
+    name: "Copiar texto do informe",
   });
-  const email = page.getByRole("button", { name: "Enviar por e-mail" });
-
-  await expect(whatsapp).toBeVisible();
-  await expect(email).toBeVisible();
-  await expect(whatsapp).toBeEnabled();
-  await expect(email).toBeEnabled();
+  await expect(copyButton).toBeVisible();
+  await expect(copyButton).toBeEnabled();
+  await copyButton.click();
+  await expect(
+    page.getByText("Informe copiado. Agora é só colar no WhatsApp."),
+  ).toBeVisible();
 });
 
 declare global {
   interface Window {
-    __openedUrls?: string[];
+    __clipboardText?: string;
     __downloadCount?: number;
+    __openedUrls?: string[];
   }
 }

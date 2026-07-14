@@ -16,7 +16,7 @@ import { OccurrenceInformation } from "./OccurrenceInformation";
 import { PeopleImpactQuestion } from "./PeopleImpactQuestion";
 import { PersonalAccidentFields } from "./PersonalAccidentFields";
 import { ReportReview } from "./ReportReview";
-import { ShareReportActions } from "./ShareReportActions";
+import { CopyReportActions } from "./CopyReportActions";
 import { PrimaryButton, SecondaryButton } from "./ui";
 import {
   calculateClassifications,
@@ -814,7 +814,7 @@ export function AnomalyReportForm() {
       ) : (
         <div className="space-y-6">
           <ReportReview data={getValues()} />
-          <ShareReportActions data={getValues()} />
+          <CopyReportActions data={getValues()} />
         </div>
       )}
 
