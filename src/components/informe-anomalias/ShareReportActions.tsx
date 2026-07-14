@@ -5,7 +5,6 @@ import { PrimaryButton, SecondaryButton } from "./ui";
 import type { AnomalyReportFormData } from "@/lib/informe-anomalias/types";
 import {
   getEmailRetryUrl,
-  getWhatsAppFallbackUserMessage,
   getWhatsAppRetryUrl,
   openExternalUrl,
   shareAnomalyReportViaEmail,
@@ -60,7 +59,7 @@ export function ShareReportActions({
     "whatsapp" | "email" | null
   >(null);
 
-  async function handleWhatsAppShare() {
+  function handleWhatsAppShare() {
     if (disabled || loading) return;
     setLoading("whatsapp");
     setStatusMessage(null);
@@ -68,16 +67,8 @@ export function ShareReportActions({
     setRetryAction(null);
 
     try {
-      const result = await shareAnomalyReportViaWhatsApp(data);
-      if (result.cancelled) {
-        setStatusMessage("O compartilhamento foi cancelado.");
-        return;
-      }
-      if (result.mode === "fallback") {
-        setStatusMessage(getWhatsAppFallbackUserMessage(data.recordNumber));
-      } else {
-        setSuccessMessage("Compartilhamento iniciado com sucesso.");
-      }
+      shareAnomalyReportViaWhatsApp(data);
+      setSuccessMessage("WhatsApp aberto com o resumo do informe.");
     } catch (error) {
       if (error instanceof Error && error.message === "POPUP_BLOCKED") {
         setStatusMessage(
@@ -85,14 +76,14 @@ export function ShareReportActions({
         );
         setRetryAction("whatsapp");
       } else {
-        setStatusMessage("Não foi possível preparar o arquivo Excel.");
+        setStatusMessage("Não foi possível abrir o WhatsApp.");
       }
     } finally {
       setLoading(null);
     }
   }
 
-  async function handleEmailShare() {
+  function handleEmailShare() {
     if (disabled || loading) return;
     setLoading("email");
     setStatusMessage(null);
@@ -100,24 +91,18 @@ export function ShareReportActions({
     setRetryAction(null);
 
     try {
-      const result = await shareAnomalyReportViaEmail(data);
-      if (result.cancelled) {
-        setStatusMessage("O compartilhamento foi cancelado.");
-        return;
-      }
-      if (result.mode === "fallback") {
-        setStatusMessage(
-          "O aplicativo de e-mail não permite anexar arquivos automaticamente neste navegador. O Excel será baixado para que você possa anexá-lo.",
-        );
-      } else {
-        setSuccessMessage("Compartilhamento iniciado com sucesso.");
-      }
+      shareAnomalyReportViaEmail(data);
+      setSuccessMessage("Aplicativo de e-mail aberto com o resumo do informe.");
     } catch (error) {
       if (error instanceof Error && error.message === "EMAIL_BLOCKED") {
-        setStatusMessage("Não foi possível abrir o aplicativo de e-mail.");
+        setStatusMessage(
+          "Não foi possível abrir o aplicativo de e-mail deste dispositivo.",
+        );
         setRetryAction("email");
       } else {
-        setStatusMessage("Não foi possível preparar o arquivo Excel.");
+        setStatusMessage(
+          "Não foi possível abrir o aplicativo de e-mail deste dispositivo.",
+        );
       }
     } finally {
       setLoading(null);
@@ -126,11 +111,21 @@ export function ShareReportActions({
 
   function handleRetry() {
     if (retryAction === "whatsapp") {
-      openExternalUrl(getWhatsAppRetryUrl(data));
+      const opened = openExternalUrl(getWhatsAppRetryUrl(data));
+      if (opened) {
+        setStatusMessage(null);
+        setSuccessMessage("WhatsApp aberto com o resumo do informe.");
+        setRetryAction(null);
+      }
       return;
     }
     if (retryAction === "email") {
-      openExternalUrl(getEmailRetryUrl(data));
+      const opened = openExternalUrl(getEmailRetryUrl(data));
+      if (opened) {
+        setStatusMessage(null);
+        setSuccessMessage("Aplicativo de e-mail aberto com o resumo do informe.");
+        setRetryAction(null);
+      }
     }
   }
 
@@ -154,8 +149,8 @@ export function ShareReportActions({
           informações pessoais e operacionais.
         </p>
         <p className="mt-1 text-xs text-slate-500">
-          Em alguns computadores, WhatsApp e e-mail não aceitam anexos
-          automáticos. Nesses casos, o Excel será baixado para anexação manual.
+          Compartilhe um resumo textual completo do informe pelo WhatsApp ou
+          e-mail.
         </p>
       </div>
 

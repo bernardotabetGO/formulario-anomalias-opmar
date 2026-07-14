@@ -1,12 +1,23 @@
 import {
   calculateClassifications,
   formatClassifications,
+  getSelectedImpacts,
   hasEnvironmentalAccident,
+  hasEnvironmentalOccurrence,
   hasPersonalAccident,
 } from "./classification";
-import { getAnomalyReportFileName } from "./excel-file";
-import { formatBrazilianDate } from "./record-number";
-import type { AnomalyReportFormData } from "./types";
+import {
+  formatBrazilianDate,
+  formatBrazilianDateTime,
+  formatCommunicationTime,
+} from "./record-number";
+import type { AnomalyReportFormData, ImpactType } from "./types";
+import {
+  ENVIRONMENT_ANSWER_LABELS,
+  IMPACT_LABELS,
+  MATERIAL_ANSWER_LABELS,
+  PEOPLE_ANSWER_LABELS,
+} from "./types";
 
 function displayValue(value: string | null | undefined): string | null {
   if (value === null || value === undefined) return null;
@@ -16,15 +27,44 @@ function displayValue(value: string | null | undefined): string | null {
   return trimmed;
 }
 
-function appendLine(
-  lines: string[],
-  label: string,
+function fieldOrDefault(
   value: string | null | undefined,
-): void {
-  const formatted = displayValue(value);
-  if (formatted) {
-    lines.push(`${label}: ${formatted}`);
+  fallback: string,
+): string {
+  return displayValue(value) ?? fallback;
+}
+
+function impactAnswerLabel(
+  impact: ImpactType,
+  data: AnomalyReportFormData,
+): string {
+  if (impact === "pessoas") {
+    return data.peopleAnswer
+      ? PEOPLE_ANSWER_LABELS[data.peopleAnswer]
+      : "Não informado";
   }
+  if (impact === "material") {
+    return data.materialAnswer
+      ? MATERIAL_ANSWER_LABELS[data.materialAnswer]
+      : "Não informado";
+  }
+  return data.environmentAnswer
+    ? ENVIRONMENT_ANSWER_LABELS[data.environmentAnswer]
+    : "Não informado";
+}
+
+function impactClassificationLabel(
+  impact: ImpactType,
+  data: AnomalyReportFormData,
+): string {
+  const classifications = calculateClassifications({
+    primaryImpact: impact,
+    additionalImpacts: [],
+    peopleAnswer: data.peopleAnswer,
+    materialAnswer: data.materialAnswer,
+    environmentAnswer: data.environmentAnswer,
+  });
+  return classifications[0] ?? "Não informado";
 }
 
 export function buildEmailSubject(recordNumber: string): string {
@@ -41,75 +81,94 @@ export function buildEmailMailtoUrl(subject: string, body: string): string {
 
 export function buildShareSummary(data: AnomalyReportFormData): string {
   const classifications = calculateClassifications(data);
-  const fileName = getAnomalyReportFileName(data.recordNumber);
-  const lines: string[] = ["Informe de Anomalia da OPMAR", ""];
-
-  appendLine(lines, "Número de registro", data.recordNumber);
-  appendLine(
-    lines,
-    "Tipo de ocorrência",
-    formatClassifications(classifications),
+  const selectedImpacts = getSelectedImpacts(
+    data.primaryImpact,
+    data.additionalImpacts,
   );
-  appendLine(
-    lines,
-    "Data da ocorrência",
-    formatBrazilianDate(data.occurrenceDate),
-  );
-  appendLine(lines, "Hora da ocorrência", data.occurrenceTime);
-  appendLine(lines, "Local", data.location);
-  appendLine(lines, "Empresa", data.company);
-  appendLine(lines, "Gerência envolvida", data.management);
-  appendLine(lines, "Informante", data.informant);
+  const additionalLabels = data.additionalImpacts
+    .filter((impact) => impact !== data.primaryImpact)
+    .map((impact) => IMPACT_LABELS[impact])
+    .join("; ");
 
-  lines.push("");
-  lines.push("Descrição:");
-  lines.push(displayValue(data.occurrenceDescription) ?? "Não informado");
-  lines.push("");
-  lines.push("Ações imediatas:");
-  lines.push(displayValue(data.immediateActions) ?? "Não informado");
+  const lines: string[] = [
+    "INFORME DE ANOMALIA DA OPMAR",
+    "",
+    "1. CLASSIFICAÇÃO",
+    "",
+    `Número de registro: ${fieldOrDefault(data.recordNumber, "Não informado")}`,
+    `Tipo de ocorrência: ${formatClassifications(classifications) || "Não informado"}`,
+    `Impacto principal: ${data.primaryImpact ? IMPACT_LABELS[data.primaryImpact] : "Não informado"}`,
+    `Outros impactos: ${additionalLabels || "Nenhum"}`,
+    "",
+    "Classificação dos impactos:",
+  ];
+
+  for (const impact of selectedImpacts) {
+    lines.push(
+      `- ${IMPACT_LABELS[impact]}: ${impactAnswerLabel(impact, data)} — ${impactClassificationLabel(impact, data)}`,
+    );
+  }
+
+  lines.push(
+    "",
+    "2. INFORMAÇÕES GERAIS",
+    "",
+    `Data e hora de criação: ${formatBrazilianDateTime(data.createdAt) || "Não informado"}`,
+    `Hora da comunicação: ${formatCommunicationTime(data.communicationTime) || "Não informado"}`,
+    `Data da ocorrência: ${formatBrazilianDate(data.occurrenceDate) || "Não informado"}`,
+    `Hora da ocorrência: ${fieldOrDefault(data.occurrenceTime, "Não informado")}`,
+    `Informante: ${fieldOrDefault(data.informant, "Não informado")}`,
+    `Função do informante: ${fieldOrDefault(data.informantRole, "Não informado")}`,
+    `Local: ${fieldOrDefault(data.location, "Não informado")}`,
+    `Latitude: ${fieldOrDefault(data.latitude, "Não informada")}`,
+    `Longitude: ${fieldOrDefault(data.longitude, "Não informada")}`,
+    `Empresa: ${fieldOrDefault(data.company, "Não informado")}`,
+    `Gerência envolvida: ${fieldOrDefault(data.management, "Não informado")}`,
+    "",
+    "3. INFORMAÇÕES SOBRE A OCORRÊNCIA",
+    "",
+    "Descrição da ocorrência:",
+    fieldOrDefault(data.occurrenceDescription, "Não informado"),
+    "",
+    "Ações imediatas:",
+    fieldOrDefault(data.immediateActions, "Não informado"),
+  );
 
   if (hasPersonalAccident(classifications)) {
-    lines.push("");
-    lines.push("Atendimento à pessoa:");
-    lines.push(`Primeiros socorros: ${data.firstAid ? "Sim" : "Não"}`);
     lines.push(
-      `Atendimento médico externo: ${data.externalMedicalCare ? "Sim" : "Não"}`,
+      "",
+      "4. ATENDIMENTO À PESSOA",
+      "",
+      `Primeiros socorros: ${data.firstAid ? "Sim" : "Não"}`,
+      `Deslocamento para atendimento médico externo: ${data.externalMedicalCare ? "Sim" : "Não"}`,
     );
   }
 
   if (hasEnvironmentalAccident(classifications)) {
-    appendLine(lines, "Produto vazado", data.spilledProduct);
-    appendLine(lines, "Volume contido", data.containedVolume);
-    appendLine(lines, "Volume não contido", data.uncontainedVolume);
-    appendLine(lines, "Hora do fim do vazamento", data.spillEndTime);
+    lines.push(
+      "",
+      "5. DADOS AMBIENTAIS",
+      "",
+      `Hora do fim do vazamento: ${fieldOrDefault(data.spillEndTime, "Não informado")}`,
+      `Volume estimado não contido: ${fieldOrDefault(data.uncontainedVolume, "Não informado")} m³`,
+      `Volume estimado contido: ${fieldOrDefault(data.containedVolume, "Não informado")} m³`,
+      `Produto vazado: ${fieldOrDefault(data.spilledProduct, "Não informado")}`,
+    );
   }
 
-  if (data.fdsMetadata?.name) {
-    appendLine(lines, "FDS selecionada", data.fdsMetadata.name);
+  if (hasEnvironmentalOccurrence(classifications)) {
+    lines.push(
+      "",
+      "6. FDS",
+      "",
+      `Arquivo FDS: ${data.fdsMetadata?.name ?? "Não anexado"}`,
+    );
   }
 
-  lines.push("");
-  lines.push(`Planilha completa do informe: ${fileName}`);
+  lines.push(
+    "",
+    "Informe gerado pelo Formulário de Informe de Anomalias da OPMAR.",
+  );
 
   return lines.join("\n");
-}
-
-export function buildEmailMailtoBody(
-  data: AnomalyReportFormData,
-  manualAttachmentNote = true,
-): string {
-  const summary = buildShareSummary(data);
-  if (!manualAttachmentNote) return summary;
-
-  const fileName = getAnomalyReportFileName(data.recordNumber);
-  return `${summary}\n\nO arquivo Excel foi baixado no dispositivo. Anexe manualmente o arquivo ${fileName} antes de enviar este e-mail.`;
-}
-
-export function buildShareTitle(recordNumber: string): string {
-  return `Informe de Anomalia ${recordNumber}`;
-}
-
-export function buildWhatsAppFallbackMessage(recordNumber: string): string {
-  const fileName = getAnomalyReportFileName(recordNumber);
-  return `O Excel foi baixado. No WhatsApp, anexe manualmente o arquivo ${fileName}.`;
 }
